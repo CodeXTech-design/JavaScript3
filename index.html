@@ -1,0 +1,256 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Javascript 3</title>
+<style>
+  :root {
+    --accent: #4f46e5;
+    --accent-dark: #4338ca;
+    --green: #16a34a;
+    --green-bg: #dcfce7;
+    --red: #dc2626;
+    --red-bg: #fee2e2;
+    --border: #e5e7eb;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+    margin: 0;
+    padding: 32px;
+    background: #f9fafb;
+    color: #111827;
+  }
+
+  h1 {
+    margin: 0 0 6px;
+    font-size: 1.6rem;
+  }
+
+  .subtitle {
+    color: #6b7280;
+    margin: 0 0 20px;
+    font-size: 0.9rem;
+  }
+
+  .subtitle a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .subtitle a:hover { text-decoration: underline; }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 16px;
+    flex-wrap: wrap;
+  }
+
+  button {
+    padding: 8px 16px;
+    border: none;
+    border-radius: 6px;
+    font-size: 0.9rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.05s ease, opacity 0.15s ease;
+  }
+
+  button:active { transform: scale(0.98); }
+
+  #loadBtn {
+    background: var(--accent);
+    color: white;
+  }
+  #loadBtn:hover:not(:disabled) { background: var(--accent-dark); }
+
+  #clearBtn {
+    background: white;
+    color: #374151;
+    border: 1px solid var(--border);
+  }
+  #clearBtn:hover:not(:disabled) { background: #f3f4f6; }
+
+  button:disabled {
+    opacity: 0.55;
+    cursor: not-allowed;
+  }
+
+  .spinner {
+    display: none;
+    width: 16px;
+    height: 16px;
+    border: 2px solid rgba(255,255,255,0.4);
+    border-top-color: white;
+    border-radius: 50%;
+    animation: spin 0.7s linear infinite;
+    margin-right: 8px;
+    vertical-align: -3px;
+  }
+  #loadBtn.loading .spinner { display: inline-block; }
+  #loadBtn.loading .btn-label::after { content: "Loading..."; }
+  #loadBtn.loading .btn-label { font-size: 0; }
+  #loadBtn.loading .btn-label::after { font-size: 0.9rem; }
+
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  .status-line {
+    font-size: 0.85rem;
+    color: #6b7280;
+    margin: 4px 0 18px;
+    min-height: 18px;
+  }
+  .status-line.error { color: var(--red); }
+
+  .table-wrap {
+    display: none;
+    background: white;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    overflow: hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,0.04);
+    max-width: 900px;
+  }
+
+  table {
+    border-collapse: collapse;
+    width: 100%;
+  }
+
+  th, td {
+    padding: 10px 14px;
+    text-align: left;
+    font-size: 0.88rem;
+  }
+
+  th {
+    background: #f3f4f6;
+    color: #374151;
+    font-weight: 600;
+    border-bottom: 1px solid var(--border);
+  }
+
+  tbody tr {
+    border-bottom: 1px solid var(--border);
+    transition: background 0.1s ease;
+  }
+  tbody tr:last-child { border-bottom: none; }
+  tbody tr:nth-child(even) { background: #fafafa; }
+  tbody tr:hover { background: #eef2ff; }
+
+  .completed { color: green; font-weight: bold; }
+  .not-completed { color: red; font-weight: bold; }
+</style>
+</head>
+<body>
+
+  <h1>Javascript Web Output #3</h1>
+  <p class="subtitle">API: <a href="https://jsonplaceholder.typicode.com/todos/" target="_blank">https://jsonplaceholder.typicode.com/todos/</a></p>
+
+  <div class="controls">
+    <button id="loadBtn">
+      <span class="spinner"></span><span class="btn-label">Load data from the API</span>
+    </button>
+    <button id="clearBtn">Clear Table</button>
+  </div>
+
+  <p id="statusLine" class="status-line"></p>
+
+  <div class="table-wrap" id="tableWrap">
+    <table id="todoTable">
+      <thead>
+        <tr>
+          <th>User ID</th>
+          <th>Task ID</th>
+          <th>Title</th>
+          <th>Status</th>
+        </tr>
+      </thead>
+      <tbody id="todoBody"></tbody>
+    </table>
+  </div>
+
+<script>
+  const loadBtn = document.getElementById('loadBtn');
+  const clearBtn = document.getElementById('clearBtn');
+  const tableWrap = document.getElementById('tableWrap');
+  const tbody = document.getElementById('todoBody');
+  const statusLine = document.getElementById('statusLine');
+
+  let dataLoaded = false; // ensures data is only fetched once per load cycle
+
+  function setStatus(msg, isError = false) {
+    statusLine.textContent = msg;
+    statusLine.classList.toggle('error', isError);
+  }
+
+  loadBtn.addEventListener('click', () => {
+    if (dataLoaded) return; // already loaded; must clear first
+
+    loadBtn.disabled = true;
+    loadBtn.classList.add('loading');
+    setStatus('Fetching to-dos…');
+
+    fetch('https://jsonplaceholder.typicode.com/todos/')
+      .then(response => {
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        return response.json();
+      })
+      .then(todos => {
+        const fragment = document.createDocumentFragment();
+
+        todos.forEach(todo => {
+          const row = document.createElement('tr');
+
+          const userIdCell = document.createElement('td');
+          userIdCell.textContent = todo.userId;
+
+          const idCell = document.createElement('td');
+          idCell.textContent = todo.id;
+
+          const titleCell = document.createElement('td');
+          titleCell.textContent = todo.title;
+
+          const statusCell = document.createElement('td');
+          if (todo.completed) {
+            statusCell.textContent = 'Completed';
+            statusCell.classList.add('completed');
+          } else {
+            statusCell.textContent = 'Not yet Completed';
+            statusCell.classList.add('not-completed');
+          }
+
+          row.append(userIdCell, idCell, titleCell, statusCell);
+          fragment.appendChild(row);
+        });
+
+        tbody.appendChild(fragment);
+        tableWrap.style.display = 'block';
+        dataLoaded = true;
+
+        const completedCount = todos.filter(t => t.completed).length;
+        setStatus(`Loaded ${todos.length} to-dos — ${completedCount} completed, ${todos.length - completedCount} pending.`);
+      })
+      .catch(err => {
+        setStatus(`Couldn't load data: ${err.message}`, true);
+        console.error('Error fetching todos:', err);
+      })
+      .finally(() => {
+        loadBtn.disabled = false;
+        loadBtn.classList.remove('loading');
+      });
+  });
+
+  clearBtn.addEventListener('click', () => {
+    tbody.innerHTML = '';
+    tableWrap.style.display = 'none';
+    dataLoaded = false; // allow loading again
+    setStatus('Table cleared.');
+  });
+</script>
+
+</body>
+</html>
